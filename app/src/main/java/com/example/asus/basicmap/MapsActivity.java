@@ -11,11 +11,15 @@ import android.location.Location;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.content.ContextCompat;
+import android.view.View;
 
 
+import com.google.android.gms.common.GooglePlayServicesNotAvailableException;
+import com.google.android.gms.common.GooglePlayServicesRepairableException;
 import com.google.android.gms.common.api.ResolvableApiException;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationCallback;
@@ -25,6 +29,8 @@ import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.LocationSettingsRequest;
 import com.google.android.gms.location.LocationSettingsResponse;
 import com.google.android.gms.location.SettingsClient;
+import com.google.android.gms.location.places.Place;
+import com.google.android.gms.location.places.ui.PlacePicker;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 
@@ -50,11 +56,13 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private FusedLocationProviderClient fusedLocationProviderClient;
     private int LOCATION_PERMISSION_REQUEST_CODE = 1;
     private int REQUEST_CHECK_SETTINGS = 2;
+    private int PLACE_PICKER_REQUEST = 3;
     private Location lastlocation;
     private boolean permit = false;
     private LocationCallback locationCallback;
     private LocationRequest locationRequest;
-    private boolean locationUpdateState=false;
+    private boolean locationUpdateState = false;
+    private Address address;
     //endregion
 
     @Override
@@ -67,20 +75,28 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
 
-        locationCallback = new LocationCallback(){
+        FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
+
+        fab.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                loadPlacePicker();
+            }
+        });
+
+        locationCallback = new LocationCallback() {
 
             @Override
             public void onLocationResult(LocationResult locationResult) {
                 super.onLocationResult(locationResult);
                 lastlocation = locationResult.getLastLocation();
-                markerPlacing(new LatLng(lastlocation.getLatitude(),lastlocation.getLongitude()));
+                markerPlacing(new LatLng(lastlocation.getLatitude(), lastlocation.getLongitude()));
             }
         };
 
         createLocationRequest();
 
     }
-
 
     /**
      * Manipulates the map once available.
@@ -133,7 +149,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         Task<LocationSettingsResponse> task = client.checkLocationSettings(builder.build());
 
 
-
         task.addOnSuccessListener(this, new OnSuccessListener<LocationSettingsResponse>() {
             @Override
             public void onSuccess(LocationSettingsResponse locationSettingsResponse) {
@@ -144,12 +159,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         });
 
 
-
         task.addOnFailureListener(this, new OnFailureListener() {
             @Override
             public void onFailure(@NonNull Exception e) {
 
-                if ( e instanceof ResolvableApiException) {
+                if (e instanceof ResolvableApiException) {
                     // Location settings are not satisfied, but this can be fixed
                     // by showing the user a dialog.
                     try {
@@ -163,18 +177,29 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     }
                 }
             }
-        } );
+        });
     }
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-       if (requestCode == REQUEST_CHECK_SETTINGS) {
+        if (requestCode == REQUEST_CHECK_SETTINGS) {
             if (resultCode == Activity.RESULT_OK) {
                 locationUpdateState = true;
-               startLocationUpdates();
+                startLocationUpdates();
             }
         }
+
+        if (requestCode == PLACE_PICKER_REQUEST) {
+            if (resultCode == RESULT_OK) {
+                Place place = PlacePicker.getPlace(this, data);
+                String addressText = place.getName().toString();
+                addressText += "\n" + place.getAddress().toString();
+
+                markerPlacing(place.getLatLng());
+            }
+        }
+
     }
 
     @Override
@@ -191,6 +216,17 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }
     }
 
+    private void loadPlacePicker() {
+        PlacePicker.IntentBuilder builder = new PlacePicker.IntentBuilder();
+
+        try {
+            startActivityForResult(builder.build(this), PLACE_PICKER_REQUEST);
+        } catch (GooglePlayServicesRepairableException e) {
+            e.printStackTrace();
+        } catch (GooglePlayServicesNotAvailableException e) {
+            e.printStackTrace();
+        }
+    }
 
 
     private void setUpMap() {
@@ -219,9 +255,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }
     }
 
-    private void markerPlacing(LatLng latLng)
-    {
-        MarkerOptions mk= new MarkerOptions();
+    private void markerPlacing(LatLng latLng) {
+        MarkerOptions mk = new MarkerOptions();
         mk.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN));
         //mk.title();
         map.addMarker(mk.position(latLng).title(getAddress(latLng)));
@@ -230,18 +265,17 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     public String getAddress(LatLng latLng) {
         Geocoder geocoder = new Geocoder(this);
-        List<Address> addresses= new ArrayList<>();
-        //val address: Address?
-        Address address;
+        List<Address> addresses = new ArrayList<>();
+
         String addressText = "";
 
         try {
             addresses = geocoder.getFromLocation(latLng.latitude, latLng.longitude, 1);
-            if ( addresses != null && !addresses.isEmpty()) {
+            if (addresses != null && !addresses.isEmpty()) {
                 address = addresses.get(0);
-                for(int i = 0; i <= address.getMaxAddressLineIndex(); i++) {
-                     if (i == 0) addressText +=address.getAddressLine(i) ;
-                     else addressText += "\n" + address.getAddressLine(i);
+                for (int i = 0; i <= address.getMaxAddressLineIndex(); i++) {
+                    if (i == 0) addressText += address.getAddressLine(i);
+                    else addressText += "\n" + address.getAddressLine(i);
                     //addressFragments.add(address.getAddressLine(i));
                 }
 //                for (i in 0 until address.maxAddressLineIndex) {
@@ -249,11 +283,12 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 //                }
             }
         } catch (IOException e) {
-        //Log.e("MapsActivity", e.localizedMessage);
-    }
+            //Log.e("MapsActivity", e.localizedMessage);
+        }
 
         return addressText;
     }
+
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
 

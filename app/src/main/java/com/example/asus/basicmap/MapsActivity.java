@@ -31,6 +31,7 @@ import java.util.List;
 
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback, GoogleMap.OnMarkerClickListener {
 
+    //sakib
     private GoogleMap map;
     private FusedLocationProviderClient fusedLocationProviderClient;
     private int LOCATION_PERMISSION_REQUEST_CODE = 1;

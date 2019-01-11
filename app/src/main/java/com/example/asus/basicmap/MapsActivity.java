@@ -1,19 +1,30 @@
 package com.example.asus.basicmap;
 
 import android.Manifest;
+import android.app.Activity;
+import android.content.Intent;
+import android.content.IntentSender;
 import android.content.pm.PackageManager;
 import android.location.Address;
 import android.location.Geocoder;
 import android.location.Location;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.content.ContextCompat;
 
 
+import com.google.android.gms.common.api.ResolvableApiException;
 import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationCallback;
+import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.location.LocationSettingsRequest;
+import com.google.android.gms.location.LocationSettingsResponse;
+import com.google.android.gms.location.SettingsClient;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 
@@ -23,7 +34,9 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.android.gms.tasks.Task;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -31,13 +44,18 @@ import java.util.List;
 
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback, GoogleMap.OnMarkerClickListener {
 
-    //jobaid
-    //sakib
+
+    //region all variables
     private GoogleMap map;
     private FusedLocationProviderClient fusedLocationProviderClient;
     private int LOCATION_PERMISSION_REQUEST_CODE = 1;
+    private int REQUEST_CHECK_SETTINGS = 2;
     private Location lastlocation;
     private boolean permit = false;
+    private LocationCallback locationCallback;
+    private LocationRequest locationRequest;
+    private boolean locationUpdateState=false;
+    //endregion
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -48,6 +66,19 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
+
+        locationCallback = new LocationCallback(){
+
+            @Override
+            public void onLocationResult(LocationResult locationResult) {
+                super.onLocationResult(locationResult);
+                lastlocation = locationResult.getLastLocation();
+                markerPlacing(new LatLng(lastlocation.getLatitude(),lastlocation.getLongitude()));
+            }
+        };
+
+        createLocationRequest();
+
     }
 
 
@@ -77,6 +108,91 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         return false;
     }
 
+    private void startLocationUpdates() {
+        if (ContextCompat.checkSelfPermission(this,
+                android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
+                    LOCATION_PERMISSION_REQUEST_CODE);
+
+        }
+
+        fusedLocationProviderClient.requestLocationUpdates(locationRequest, locationCallback, null /* Looper */);
+    }
+
+    private void createLocationRequest() {
+        locationRequest = new LocationRequest();
+        locationRequest.setInterval(10000);
+        locationRequest.setFastestInterval(5000);
+        locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+
+        LocationSettingsRequest.Builder builder = new LocationSettingsRequest.Builder()
+                .addLocationRequest(locationRequest);
+
+        SettingsClient client = LocationServices.getSettingsClient(this);
+        Task<LocationSettingsResponse> task = client.checkLocationSettings(builder.build());
+
+
+
+        task.addOnSuccessListener(this, new OnSuccessListener<LocationSettingsResponse>() {
+            @Override
+            public void onSuccess(LocationSettingsResponse locationSettingsResponse) {
+
+                locationUpdateState = true;
+                startLocationUpdates();
+            }
+        });
+
+
+
+        task.addOnFailureListener(this, new OnFailureListener() {
+            @Override
+            public void onFailure(@NonNull Exception e) {
+
+                if ( e instanceof ResolvableApiException) {
+                    // Location settings are not satisfied, but this can be fixed
+                    // by showing the user a dialog.
+                    try {
+                        // Show the dialog by calling startResolutionForResult(),
+                        // and check the result in onActivityResult().
+                        ResolvableApiException resolvable = (ResolvableApiException) e;
+                        resolvable.startResolutionForResult(MapsActivity.this,
+                                REQUEST_CHECK_SETTINGS);
+                    } catch (IntentSender.SendIntentException sendEx) {
+                        // Ignore the error.
+                    }
+                }
+            }
+        } );
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+       if (requestCode == REQUEST_CHECK_SETTINGS) {
+            if (resultCode == Activity.RESULT_OK) {
+                locationUpdateState = true;
+               startLocationUpdates();
+            }
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        fusedLocationProviderClient.removeLocationUpdates(locationCallback);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (!locationUpdateState) {
+            startLocationUpdates();
+        }
+    }
+
+
+
     private void setUpMap() {
         if (ContextCompat.checkSelfPermission(this,
                 android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
@@ -96,19 +212,23 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
                                 lastlocation = location;
                                 LatLng currentLatLng = new LatLng(location.getLatitude(), location.getLongitude());
-                                MarkerOptions mk= new MarkerOptions();
-                                mk.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN));
-                                //mk.title();
-                                map.addMarker(mk.position(currentLatLng).title(getAddress(currentLatLng)));
-                                map.animateCamera(CameraUpdateFactory.newLatLngZoom(currentLatLng, 15f));
+                                markerPlacing(currentLatLng);
                             }
                         }
                     });
         }
     }
 
-    public String getAddress(LatLng latLng)
+    private void markerPlacing(LatLng latLng)
     {
+        MarkerOptions mk= new MarkerOptions();
+        mk.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN));
+        //mk.title();
+        map.addMarker(mk.position(latLng).title(getAddress(latLng)));
+        map.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, 15f));
+    }
+
+    public String getAddress(LatLng latLng) {
         Geocoder geocoder = new Geocoder(this);
         List<Address> addresses= new ArrayList<>();
         //val address: Address?

@@ -15,8 +15,8 @@ import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.content.ContextCompat;
+import android.util.Log;
 import android.view.View;
-
 
 import com.google.android.gms.common.GooglePlayServicesNotAvailableException;
 import com.google.android.gms.common.GooglePlayServicesRepairableException;
@@ -33,7 +33,6 @@ import com.google.android.gms.location.places.Place;
 import com.google.android.gms.location.places.ui.PlacePicker;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
-
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
@@ -59,6 +58,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private int PLACE_PICKER_REQUEST = 3;
     private Location lastlocation;
     private boolean permit = false;
+    private String tag="sima";
     private LocationCallback locationCallback;
     private LocationRequest locationRequest;
     private boolean locationUpdateState = false;
@@ -69,11 +69,13 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
+
         fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
+        Log.d(tag,"After GetMapAsync");
 
         FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
 
@@ -90,11 +92,17 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             public void onLocationResult(LocationResult locationResult) {
                 super.onLocationResult(locationResult);
                 lastlocation = locationResult.getLastLocation();
+                Log.d(tag,"callback");
+
                 markerPlacing(new LatLng(lastlocation.getLatitude(), lastlocation.getLongitude()));
             }
         };
 
+
+
         createLocationRequest();
+
+
 
     }
 
@@ -110,6 +118,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     @Override
     public void onMapReady(GoogleMap googleMap) {
 
+        Log.d(tag,"onMapReady");
         map = googleMap;
         map.getUiSettings().setZoomControlsEnabled(true);
         map.setOnMarkerClickListener(this);
@@ -121,10 +130,14 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     @Override
     public boolean onMarkerClick(Marker marker) {
+        Log.d(tag,"onMarkerClick");
+
         return false;
     }
 
     private void startLocationUpdates() {
+        Log.d(tag,"startLocUpdate");
+
         if (ContextCompat.checkSelfPermission(this,
                 android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this,
@@ -133,10 +146,15 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         }
 
+
         fusedLocationProviderClient.requestLocationUpdates(locationRequest, locationCallback, null /* Looper */);
+
+
     }
 
     private void createLocationRequest() {
+        Log.d(tag,"CreateLocRequest");
+
         locationRequest = new LocationRequest();
         locationRequest.setInterval(10000);
         locationRequest.setFastestInterval(5000);
@@ -152,6 +170,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         task.addOnSuccessListener(this, new OnSuccessListener<LocationSettingsResponse>() {
             @Override
             public void onSuccess(LocationSettingsResponse locationSettingsResponse) {
+
+                Log.d(tag,"insideSuccess");
 
                 locationUpdateState = true;
                 startLocationUpdates();
@@ -182,6 +202,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        Log.d(tag,"inside onActivityResult9");
+
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQUEST_CHECK_SETTINGS) {
             if (resultCode == Activity.RESULT_OK) {
@@ -204,12 +226,16 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     @Override
     protected void onPause() {
+        Log.d(tag,"onPause");
+
         super.onPause();
         fusedLocationProviderClient.removeLocationUpdates(locationCallback);
     }
 
     @Override
     protected void onResume() {
+        Log.d(tag,"onResume");
+
         super.onResume();
         if (!locationUpdateState) {
             startLocationUpdates();
@@ -217,6 +243,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     }
 
     private void loadPlacePicker() {
+
+        Log.d(tag,"loadPlacePicker");
+
         PlacePicker.IntentBuilder builder = new PlacePicker.IntentBuilder();
 
         try {
@@ -229,7 +258,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     }
 
 
-    private void setUpMap() {
+        private void setUpMap() {
+        Log.d(tag,"setUpMap");
+
         if (ContextCompat.checkSelfPermission(this,
                 android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_REQUEST_CODE);
@@ -256,6 +287,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     }
 
     private void markerPlacing(LatLng latLng) {
+
+        Log.d(tag,"MarkerPlacing");
+
         MarkerOptions mk = new MarkerOptions();
         mk.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN));
         //mk.title();
@@ -264,6 +298,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     }
 
     public String getAddress(LatLng latLng) {
+        Log.d(tag,"getAddress");
+
         Geocoder geocoder = new Geocoder(this);
         List<Address> addresses = new ArrayList<>();
 
@@ -292,9 +328,13 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
 
+        Log.d(tag,"onRequestPermission");
+
         if (grantResults.length > 0 && requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
             if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 permit = true;
+                startLocationUpdates();
+
             } else return;
         } else
             return;
